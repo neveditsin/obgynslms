@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "obgynslms"
+version = "0.1.0"
+description = "Reproducibility package for reproducing obstetric ultrasound classification experiments."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "sentence-transformers",
+  "torch",
+  "tqdm",
+  "transformers",
+]
+
+[project.optional-dependencies]
+notebooks = [
+  "ipython",
+  "jupyter",
+  "matplotlib",
+  "seaborn",
+]
+
+[project.scripts]
+obgynslms-run = "run_mimic_baseline_and_loo:main"
+obgynslms-regex-baseline = "evaluate_mimic_regex_baseline:main"
+
+[tool.setuptools]
+py-modules = ["evaluate_mimic_regex_baseline", "regex_baseline", "run_mimic_baseline_and_loo"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src"]

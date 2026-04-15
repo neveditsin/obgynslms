@@ -1,0 +1,109 @@
+{
+  "paths": {
+    "dataset": "our",
+    "dataset_paths": {
+      "mimic": {
+        "data_dir": "../reproducibility_data/mimic/documents",
+        "gold_labels": "../reproducibility_data/mimic/gold_labels.csv",
+        "base_predictions_path": "../results/reproducibility_minimal_mimic_long/zero_shot/all_models.pkl"
+      },
+      "our": {
+        "data_dir": "../reproducibility_data/india/documents",
+        "gold_labels": "../reproducibility_data/india/gold_labels.csv",
+        "base_predictions_path": "../results/reproducibility_minimal_indic_long/zero_shot/all_models.pkl"
+      }
+    },
+    "data_dir": "../reproducibility_data/india/documents",
+    "gold_labels": "../reproducibility_data/india/gold_labels.csv",
+    "output_root": "../results/reproducibility_minimal_indic_long",
+    "base_predictions_path": null
+  },
+  "models": [
+    "meta-llama/Llama-3.2-3B-Instruct",
+    "mistralai/Ministral-3-3B-Instruct-2512-BF16",
+    "google/gemma-3-4b-it",
+    "Qwen/Qwen3-4B-Instruct-2507",
+    "microsoft/MediPhi-Instruct",
+    "microsoft/Phi-3.5-mini-instruct",
+    "microsoft/Phi-4-mini-instruct"
+  ],
+  "artifacts": {
+    "write_samples_txt": true,
+    "sample_count_per_model": 1,
+    "sample_random_state": 0,
+    "write_error_log": true
+  },
+  "document_sampling": {
+    "enabled": false,
+    "fraction": 0.1,
+    "stratified": true,
+    "random_state": 42
+  },
+  "zero_shot": {
+    "enabled": true,
+    "output_subdir": "zero_shot",
+    "prompt_option": "long",
+    "prompt_options": {
+      "long": "You are a medical assistant specialized in Obstetric and Gynecologic Ultrasound.\n\nTask: Classify the document-level ACTIVE pregnancy status at the time of this report, using ONLY what is stated or strongly implied in the report (no outside chart review).\n\nChoose exactly ONE label from:\n- early active pregnancy\n- late active pregnancy\n- no active pregnancy\n\nKey definition (ACTIVE pregnancy):\n\"Active\" means pregnancy tissue/trophoblastic tissue is currently present or reasonably suspected to be present such that pregnancy-specific evaluation/management is ongoing, regardless of viability. This includes:\n- confirmed/suspected intrauterine pregnancy (IUP), including nonviable IUP if management is not documented as complete,\n- confirmed/suspected ectopic pregnancy,\n- pregnancy of unknown location (PUL) when ongoing pregnancy/ectopic is still being worked up,\n- vascularized retained products of conception (RPOC) with suspected persistent trophoblastic activity.\nDo NOT switch to \"no active pregnancy\" at the moment nonviability is diagnosed; switch only when the report documents resolution/completion (e.g., confirmed passage, completed procedure, or follow-up showing no persistent active pregnancy).\n\nDecision rules (apply in order):\n1) Decide ACTIVE vs NO ACTIVE first:\n   - If the report raises ongoing pregnancy/ectopic/PUL as an active diagnostic possibility (even \"cannot exclude\", \"correlate with beta-hCG\", serial follow-up), classify as ACTIVE (usually early active pregnancy).\n   - If the report describes resolved/post-management state with no ongoing pregnancy concern (postpartum; completed miscarriage with passage or completed treatment; post-treatment ectopic follow-up without persistent concern; non-obstetric gyn imaging), classify as NO ACTIVE.\n\n2) If ACTIVE, split early vs late using best GA evidence:\n   - early active pregnancy: GA < 14 weeks\n   - late active pregnancy: GA >= 14 weeks\n   GA may come from explicit GA, EDD inference, LMP estimate, fetal biometry, or clear exam context.\n\n3) If ACTIVE but GA cannot be determined:\n   - Default to early active pregnancy unless the report clearly indicates second-trimester/later pregnancy (e.g., anatomy survey, amniocentesis, established pregnancy procedures).\n\nRPOC rule:\n- Vascularized RPOC with suspected persistent trophoblastic activity / ongoing pregnancy-related management concern -> ACTIVE (typically early).\n- Non-vascularized RPOC with no gestational sac in post-miscarriage/post-procedure follow-up -> NO ACTIVE.\n\nOnly output the label (exactly one of the three). Do not output any other text.\n\nReport:\n\"{report_text}\"\n\nLabel: ",
+      "short": "You are a medical assistant specialized in Obstetric and Gynecologic Ultrasound. Classify the report into exactly ONE label:\n\n- early active pregnancy: active/suspected pregnancy tissue with GA < 14 weeks, including pregnancy of unknown location under workup and nonviable 1st-trimester pregnancy.\n- late active pregnancy: active pregnancy with GA >= 14 weeks (2nd/3rd trimester).\n- no active pregnancy: no current pregnancy tissue or pregnancy is resolved.\n\nOnly output the label exactly. No other text.\n\nReport:\n\"{report_text}\"\n\nLabel: "
+    }
+  },
+  "loo": {
+    "enabled": true,
+    "output_subdir": "loo",
+    "run_selections": [
+      "ping", "ping_ra", "cross_ping", "cross_ping_ra", "random", "random_ra"
+    ],
+    "seeds": [
+      0,
+      30,
+      500,
+      6370,
+      17893
+    ],
+    "k_values": [
+      2,
+      4,
+      6,
+      8,
+      10
+    ],
+    "embed_model": "intfloat/multilingual-e5-large",
+    "embed_device": "auto",
+    "embed_prefix": "passage: ",
+    "ping_ablation": "default",
+    "ping_composition": "all",
+    "ping_committee_size": 3,
+    "prompt_option": "long",
+    "prompt_options": {
+      "long": "You are a medical assistant specialized in Obstetric and Gynecologic Ultrasound.\n\nTask: Classify the document-level ACTIVE pregnancy status at the time of this report, using ONLY what is stated or strongly implied in the report (no outside chart review).\n\nChoose exactly ONE label from:\n- early active pregnancy\n- late active pregnancy\n- no active pregnancy\n\nKey definition (ACTIVE pregnancy):\n\"Active\" means pregnancy tissue/trophoblastic tissue is currently present or reasonably suspected to be present such that pregnancy-specific evaluation/management is ongoing, regardless of viability. This includes:\n- confirmed/suspected intrauterine pregnancy (IUP), including nonviable IUP if management is not documented as complete,\n- confirmed/suspected ectopic pregnancy,\n- pregnancy of unknown location (PUL) when ongoing pregnancy/ectopic is still being worked up,\n- vascularized retained products of conception (RPOC) with suspected persistent trophoblastic activity.\nDo NOT switch to \"no active pregnancy\" at the moment nonviability is diagnosed; switch only when the report documents resolution/completion (e.g., confirmed passage, completed procedure, or follow-up showing no persistent active pregnancy).\n\nDecision rules (apply in order):\n1) Decide ACTIVE vs NO ACTIVE first:\n   - If the report raises ongoing pregnancy/ectopic/PUL as an active diagnostic possibility (even \"cannot exclude\", \"correlate with beta-hCG\", serial follow-up), classify as ACTIVE (usually early active pregnancy).\n   - If the report describes resolved/post-management state with no ongoing pregnancy concern (postpartum; completed miscarriage with passage or completed treatment; post-treatment ectopic follow-up without persistent concern; non-obstetric gyn imaging), classify as NO ACTIVE.\n\n2) If ACTIVE, split early vs late using best GA evidence:\n   - early active pregnancy: GA < 14 weeks\n   - late active pregnancy: GA >= 14 weeks\n   GA may come from explicit GA, EDD inference, LMP estimate, fetal biometry, or clear exam context.\n\n3) If ACTIVE but GA cannot be determined:\n   - Default to early active pregnancy unless the report clearly indicates second-trimester/later pregnancy (e.g., anatomy survey, amniocentesis, established pregnancy procedures).\n\nRPOC rule:\n- Vascularized RPOC with suspected persistent trophoblastic activity / ongoing pregnancy-related management concern -> ACTIVE (typically early).\n- Non-vascularized RPOC with no gestational sac in post-miscarriage/post-procedure follow-up -> NO ACTIVE.\n\nOnly output the label (exactly one of the three). Do not output any other text.\n\nI will give you some examples first and then it will be your turn. Examples:\n\n",
+      "short": "You are a medical assistant specialized in Obstetric and Gynecologic Ultrasound. Classify the report into exactly ONE label:\n\n- early active pregnancy: active/suspected pregnancy tissue with GA < 14 weeks, including pregnancy of unknown location under workup and nonviable 1st-trimester pregnancy.\n- late active pregnancy: active pregnancy with GA >= 14 weeks (2nd/3rd trimester).\n- no active pregnancy: no current pregnancy tissue or pregnancy is resolved.\n\nOnly output the label exactly. No other text.\n\nI will give you some examples first and then it will be your turn. Examples:\n\n"
+    },
+    "query_template": "NOW YOUR TURN. Provide a label for this report:\n\n\"{report_text}\"\n\nLabel: ",
+    "prompt_kwargs": {
+      "include_group_headers": false,
+      "input_tag": "Report",
+      "output_tag": "Label"
+    },
+    "prompt_kwargs_by_selection": {
+      "random": {},
+      "random_ra": {},
+      "ping": {},
+      "ping_ra": {},
+      "cross_ping": {},
+      "cross_ping_ra": {}
+    },
+    "selection_overrides": {
+      "random": {},
+      "random_ra": {},
+      "ping": {},
+      "ping_ra": {},
+      "cross_ping": {},
+      "cross_ping_ra": {}
+    }
+  },
+  "rerun": {
+    "enabled": false,
+    "output_suffix": "_UPD"
+  }
+}
