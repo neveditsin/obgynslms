@@ -227,7 +227,6 @@ Modules under `src/` are source code, not generated artifacts. I do not recommen
 | `src/consolidated_loo_eval.py` | Builds consolidated leave-one-out evaluation tables for downstream reporting. |
 | `src/cross_institutional_analysis.py` | Standalone cross-institution transfer analysis script that writes summary tables. |
 | `src/eval.py` | Generic evaluation and paired bootstrap significance helpers used by the LOO pipeline. |
-| `src/evalpairs.py` | Specialized significance utilities for comparing predefined medical-vs-general model pairs. |
 | `src/evalping.py` | Specialized significance utilities for comparing one target method against other methods. |
 
 ### Auxiliary modules
@@ -235,7 +234,6 @@ Modules under `src/` are source code, not generated artifacts. I do not recommen
 | File | Purpose |
 |---|---|
 | `src/embeds.py` | Small embedding-similarity helper for inspecting nearest documents from a saved embedding file. |
-| `src/text_normalizer.py` | Optional LLM-based report normalization / structured extraction utility; not part of the main reproducibility workflow. |
 | `src/__init__.py` | Package marker. |
 
 ## Notes
