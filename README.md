@@ -1,4 +1,4 @@
-# OBGYN SLMs Reproducibility Package
+# Reproducibility Package for "Privacy-preserving, low-annotation pregnancy status classification from obstetric ultrasound reports using on-premises small language models"
 
 This repository is the reproducibility-oriented code package for reproducing the experiments in this repository. It is intentionally code-first:
 
