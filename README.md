@@ -118,6 +118,78 @@ Important config sections:
 - `loo.k_values`: exemplar counts
 - `loo.seeds`: random seeds for stochastic selectors
 
+## Mapping From Paper To Code
+
+The paper and the code use different identifiers for the same objects. This section is the
+translation table.
+
+### Selection regimes
+
+The paper names four selection regimes (Section 3.4 / Figure 5). They appear under two
+different sets of identifiers in the code: as *regime* names in the efficiency simulation, and
+as *ping-ablation preset* names in the inference pipeline.
+
+| Paper (Section 3.4 / Figure 5) | Efficiency-simulation regime in `scripts/run_balanced_draw_selection_stats.py` | Ping-ablation preset in `run_mimic_baseline_and_loo.py` |
+|---|---|---|
+| Random | `pure_random` | config selection `random` / `random_ra` |
+| ŷ-Bucket | `reveal_one_by_one_yhat_round_robin` | `a8_reveal_yhat_round_robin_no_pong` |
+| NoUpdate | `reveal_one_by_one_yhat_round_robin_prob_no_update` | — |
+| WithUpdate (proposed) | `reveal_one_by_one_yhat_round_robin_prob_update` | `default` (also `a9_reveal_yhat_round_robin_prob_update_no_pong`) |
+
+The code additionally implements `reveal_one_by_one_yhat_round_robin_uncertainty_weighted`.
+That regime is **not reported in the paper**; it is retained only because it is part of the
+simulation code that was actually run.
+
+### Config selection names
+
+`loo.run_selections` accepts any subset of `ping`, `ping_ra`, `cross_ping`, `cross_ping_ra`,
+`random`, `random_ra`. The name encodes two independent choices.
+
+Selection procedure (name stem):
+
+- `ping*`: the proposed selection procedure.
+- `random*`: balanced random selection.
+- `cross_ping*`: cross-institutional exemplar transfer, i.e. exemplars are drawn from the
+  *other* cohort.
+
+Prompt content (suffix):
+
+- `_ra` suffix: rationale-augmented prompting, the paper's "rationale-augmented ICL".
+- no suffix: label-only ICL.
+
+### Exemplar-count notation (important)
+
+The two notations differ, and confusing them changes the reported prompt size by a factor of
+three:
+
+- In the **code**, `k` / `loo.k_values` is the **per-class** quota, because `per_label=True` is
+  the default in `select_icls_pingpong`.
+- In the **paper**, *m* is the per-class quota and *k = 3m* is the **total** number of
+  exemplars in the prompt (three classes).
+
+So the shipped `k_values: [2, 4, 6, 8, 10]` corresponds to the paper's *m* ∈ {2, 4, 6, 8, 10},
+i.e. total prompt sizes of 6, 12, 18, 24 and 30 exemplars.
+
+### Cohort keys
+
+`paths.dataset` accepts `mimic` and `our`. The `our` cohort is the paper's "Indian OCR
+cohort". The variant directory names and the shipped config filenames use `indic` for that
+same cohort (for example `configs/reproducibility_minimal_indic_long.json` and
+`results/mimic_streamlined_pipeline_small_models_indic_upd_long`). `our` and `indic` therefore
+refer to one cohort, not two.
+
+### Algorithm S1
+
+The paper's Supplementary Algorithm S1 is implemented by `select_icls_pingpong` in
+`src/vote_entropy.py`. The WithUpdate configuration corresponds to the flags:
+
+- `reveal_one_by_one=True`
+- `reveal_ping_pred_round_robin_prob_update=True`
+- `reveal_no_pong_compensation=True`
+
+These are exactly the `default` entry in `PING_ABLATION_PRESETS` in
+`run_mimic_baseline_and_loo.py`.
+
 ## Reproduce The Experiments
 
 1. Put the report text files and gold labels under `reproducibility_data/` or edit the config paths to your preferred location.
