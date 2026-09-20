@@ -213,6 +213,24 @@ To inspect the run plan without model inference:
 obgynslms-run --config configs/reproducibility_minimal_mimic_long.json --dry-run
 ```
 
+### Consolidated result tables
+
+Once the LOO stage has been run, build the consolidated evaluation tables:
+
+```bash
+python scripts/build_consolidated_loo_tables.py \
+  --output-dir analysis/consolidated_loo_tables \
+  --bootstrap-reps 5000
+```
+
+`--bootstrap-reps 5000` is given explicitly because every classification comparison and
+confidence interval reported in the paper uses **B = 5,000** bootstrap resamples. The
+in-code default is 10,000 - in `scripts/build_consolidated_loo_tables.py`, in
+`build_consolidated_tables(...)` in `src/consolidated_loo_eval.py`, and as `B` in
+`src/loo_selector.py` - and **running with that default does not reproduce the published
+intervals.** Pass the flag. (`scripts/run_balanced_draw_stats_inference.py` already
+defaults to 5,000 and needs no flag.)
+
 ## Reproduce Selection-Efficiency Experiments
 
 `extra_notebooks/fig_selection_efficiency.ipynb` does not generate the underlying data. It only reads precomputed CSV and JSON artifacts from:
