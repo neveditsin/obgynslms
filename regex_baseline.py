@@ -16,13 +16,27 @@ approaches can achieve on this task, so that any advantage of LLM-based
 methods is clearly attributable to language understanding rather than simple
 keyword presence.
 
-The classifier applies rules in priority order:
-  1. Explicit GA extraction  (strongest signal)
-  2. Trimester keywords      (direct mentions)
-  3. Unrelated indicators    (negation of pregnancy)
-  4. Early-pregnancy markers (CRL, yolk sac, gestational sac, etc.)
-  5. Late-pregnancy markers  (biometry, BPP, Dopplers, presentation, etc.)
-  6. Fallback heuristic      (measurement-based inference)
+The classifier applies rules in the following priority order (see the
+`# --- Rule N ---` comments in `classify_report_detailed`):
+  1. Unrelated indicators    (negation of pregnancy) - fires ONLY when there
+                             is no gestational age and no early or late
+                             markers, i.e. when `is_unrelated` is true and
+                             `early_count == 0` and `late_count == 0` and
+                             `ga_weeks is None`
+  2. Explicit GA extraction  (weeks -> early if GA < 14, else late)
+  3. Trimester keywords      (direct mentions)
+  4. CRL measurement         (crown-rump length implies early)
+  5. Marker-count comparison (early-pregnancy markers such as yolk sac and
+                             gestational sac vs late-pregnancy markers such
+                             as biometry, BPP, Dopplers and presentation)
+  6. EDD/EDC presence        (implies a known ongoing pregnancy -> late)
+  7. Unrelated indicators    (with weak pregnancy evidence)
+  8. Fallback                (no signal -> no active pregnancy)
+
+Note that the unrelated check is consulted twice: once at step 1 as a
+high-confidence negation that requires the absence of any pregnancy signal,
+and again at step 7 as a lower-confidence fallback once the positive rules
+have all declined to fire.
 
 OCR robustness: patterns account for common OCR errors (spaces in numbers,
 missing punctuation, inconsistent abbreviations, digit/letter confusion).
@@ -345,13 +359,16 @@ def classify_report_detailed(text: str) -> ClassificationResult:
     Classify with full diagnostic output.
 
     Priority order:
-      1. Unrelated indicators (highest priority negation)
+      1. Unrelated indicators → unrelated, only when there is no GA and no
+         early or late markers (is_unrelated and early_count == 0 and
+         late_count == 0 and ga_weeks is None)
       2. Explicit GA in weeks → early/late by cutoff
       3. Explicit trimester mention
       4. CRL measurement → infer early
       5. Marker count comparison (early vs late markers)
       6. EDD/EDC presence → late (implies known ongoing pregnancy)
-      7. Default → unrelated
+      7. Unrelated flag with weak pregnancy evidence → unrelated
+      8. Fallback: no signal → unrelated
     """
     if not text or not text.strip():
         return ClassificationResult(
