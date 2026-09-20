@@ -9,13 +9,6 @@ import pandas as pd
 
 
 
-def show_file(file_name, directory='/var/share/salil_ocrout'):
-    path = Path(directory) / file_name
-    if path.exists():
-        print(path.read_text(encoding='utf-8'))
-    else:
-        print(f'{file_name} not found in {directory}')
-        
 def _infer_column(df: pd.DataFrame, choices: Sequence[str]) -> Optional[str]:
     for c in choices:
         if c in df.columns:
