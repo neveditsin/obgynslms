@@ -61,13 +61,8 @@ import os
 from transformers import pipeline
 
 import os
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import pipeline
 
-# Models that require extended context via RoPE scaling
-SPECIAL_ROPE_MODELS = {
-#    "meta-llama/Llama-3.1-8B-Instruct",
-    "TsinghuaC3I/Llama-3.1-8B-UltraMedical",
-}
 
 def _load_pipeline(model_name: str):
     logger = get_logger(model_name)
@@ -76,44 +71,24 @@ def _load_pipeline(model_name: str):
         return None
 
     try:
-        # If using specific Llama 3.1 8B variants, pass RoPE scaling on load
-        if model_name in SPECIAL_ROPE_MODELS:
-            rope_cfg = {
-                "type": "yarn",
-                "factor": 4.0,
-                "original_max_position_embeddings": 32768,
-            }
-            tok = AutoTokenizer.from_pretrained(model_name)
-            mdl = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                rope_scaling=rope_cfg,
-                torch_dtype="auto",
-                device_map="auto",
-            )
+        # Default fast path
+        if _DEVICE >= 0:
+            # Prefer GPU with auto placement when available.
             pipe = pipeline(
                 "text-generation",
-                model=mdl,
-                tokenizer=tok,
+                model=model_name,
+                tokenizer=model_name,
+                model_kwargs={"torch_dtype": torch.bfloat16},
+                device_map="auto",
             )
         else:
-            # Default fast path
-            if _DEVICE >= 0:
-                # Prefer GPU with auto placement when available.
-                pipe = pipeline(
-                    "text-generation",
-                    model=model_name,
-                    tokenizer=model_name,
-                    model_kwargs={"torch_dtype": torch.bfloat16},
-                    device_map="auto",
-                )
-            else:
-                pipe = pipeline(
-                    "text-generation",
-                    model=model_name,
-                    tokenizer=model_name,
-                    model_kwargs={"torch_dtype": "auto"},
-                    device=-1,
-                )
+            pipe = pipeline(
+                "text-generation",
+                model=model_name,
+                tokenizer=model_name,
+                model_kwargs={"torch_dtype": "auto"},
+                device=-1,
+            )
         logger.info("Loaded model %s", model_name)
         return pipe
 
@@ -130,11 +105,7 @@ def run_zero_shot_classification(
     PROMPT_TEMPLATE = PROMPT_TEMPLATE,
 ) -> pd.DataFrame:
     """
-    Zero-shot run with special handling for 'thinking' model II-Medical-8B:
-      - Loads tokenizer/model ONCE (outside the loop)
-      - Generates up to 2000 new tokens
-      - Strips <think>...</think> and everything before </think>
-    For other models:
+    Zero-shot run over the configured models:
       - Uses text-generation pipeline (loaded once)
       - If chat template exists: format with apply_chat_template
       - Else: fallback to plain text
@@ -146,12 +117,8 @@ def run_zero_shot_classification(
     processed = set(df["file"].tolist())
 
     SYSTEM_TXT = "You are a helpful assistant for obstetric ultrasound classification."
-    SPECIAL_THINKING_MODEL = "Intelligent-Internet/II-Medical-8B"
-    SPECIAL_MODELS_THINKING_OFF = {"Qwen/Qwen3-8B"}  # force enable_thinking=False via template
 
     # --- helpers ---
-    import re
-
     def build_messages(name: str, prompt: str):
         name_l = name.lower()
         needs_inline_system = any(k in name_l for k in ["biomistral", "gemma"])
@@ -163,29 +130,10 @@ def run_zero_shot_classification(
                 {"role": "user", "content": prompt},
             ]
 
-    def strip_think_block(s: str) -> str:
-        # Remove <think>...</think> if present; keep remaining content
-        return re.sub(r"<think>.*?</think>", "", s, flags=re.DOTALL).strip()
-
-    # --- model/tokenizer/pipeline loading (once) ---
-    pipe = None
-    thinking_tok = None
-    thinking_model = None
-
-    if model_name == SPECIAL_THINKING_MODEL:
-        from transformers import AutoTokenizer, AutoModelForCausalLM
-
-        thinking_tok = AutoTokenizer.from_pretrained(model_name)
-        thinking_model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype="auto",
-            device_map="auto",
-        )
-        logger.info("Loaded SPECIAL thinking model %s", model_name)
-    else:
-        pipe = _load_pipeline(model_name)
-        if pipe is None:
-            return df
+    # --- pipeline loading (once) ---
+    pipe = _load_pipeline(model_name)
+    if pipe is None:
+        return df
 
     # Cache this for the pipeline path
     has_chat_template = False
@@ -208,84 +156,34 @@ def run_zero_shot_classification(
                 prompt = PROMPT_TEMPLATE.format(report_text=doc["text"])
             messages = build_messages(model_name, prompt)
 
-            if model_name == SPECIAL_THINKING_MODEL:
-                # ===== Intelligent-Internet/II-Medical-8B path (thinking unavoidable) =====
-                chat_str = thinking_tok.apply_chat_template(
-                    messages,
-                    tokenize=False,
-                    add_generation_prompt=True,
-                    enable_thinking=True,  # unavoidable; we'll strip after
-                )
-                inputs = thinking_tok([chat_str], return_tensors="pt").to(thinking_model.device)
-                gen_ids = thinking_model.generate(
-                    **inputs,
-                    max_new_tokens=2000,  # per request
+            if has_chat_template and hasattr(pipe.tokenizer, "apply_chat_template"):
+                add_kwargs = dict(tokenize=False, add_generation_prompt=True)
+
+                try:
+                    formatted = pipe.tokenizer.apply_chat_template(messages, **add_kwargs)
+                except TypeError as e:
+                    # Final fallback if tokenizer insists on different kwargs
+                    formatted = pipe.tokenizer.apply_chat_template(messages, tokenize=False)
+
+                outputs = pipe(
+                    formatted,
+                    max_new_tokens=200,
+                    max_length=None,
                     do_sample=False,
+                    return_full_text=False,
                 )
-                # Slice out only the continuation (exclude prompt)
-                cont_ids = gen_ids[0][len(inputs.input_ids[0]):].tolist()
-                generated = thinking_tok.decode(cont_ids, skip_special_tokens=True)
-
-                # Prefer split by explicit closing tag; else remove think block
-                if "</think>" in generated:
-                    response = generated.split("</think>", 1)[1].strip()
-                else:
-                    response = strip_think_block(generated)
-
+                response = outputs[0]["generated_text"]
             else:
-                # ===== All other models via pipeline =====
-                if has_chat_template and hasattr(pipe.tokenizer, "apply_chat_template"):
-                    # Use chat templating; for Qwen3-8B force thinking OFF
-                    enable_thinking_flag = (
-                        False if model_name in SPECIAL_MODELS_THINKING_OFF else None
-                    )
-                    # Build kwargs conditionally (HF raises if you pass unknown kw)
-                    template_kwargs = dict(
-                        messages=messages,
-                        tokenize=False,
-                        add_generation_prompt=True,
-                    )
-                    if enable_thinking_flag is not None:
-                        template_kwargs["enable_thinking"] = enable_thinking_flag
-
-                    # --- replace your "formatted = pipe.tokenizer.apply_chat_template(**template_kwargs)" block with this ---
-                    add_kwargs = dict(tokenize=False, add_generation_prompt=True)
-                    
-                    try:
-                        if model_name in SPECIAL_MODELS_THINKING_OFF:
-                            # Some tokenizers accept enable_thinking, others don't -> try then fallback
-                            try:
-                                formatted = pipe.tokenizer.apply_chat_template(
-                                    messages, enable_thinking=False, **add_kwargs
-                                )
-                            except TypeError:
-                                # Tokenizer doesn't support enable_thinking
-                                formatted = pipe.tokenizer.apply_chat_template(messages, **add_kwargs)
-                        else:
-                            formatted = pipe.tokenizer.apply_chat_template(messages, **add_kwargs)
-                    except TypeError as e:
-                        # Final fallback if tokenizer insists on different kwargs
-                        formatted = pipe.tokenizer.apply_chat_template(messages, tokenize=False)
-
-                    outputs = pipe(
-                        formatted,
-                        max_new_tokens=200,
-                        max_length=None,
-                        do_sample=False,
-                        return_full_text=False,
-                    )
-                    response = outputs[0]["generated_text"]
-                else:
-                    # No chat template -> plain text prompt
-                    plain = f"{SYSTEM_TXT}\n\n{prompt}"
-                    outputs = pipe(
-                        plain,
-                        max_new_tokens=200,
-                        max_length=None,
-                        do_sample=False,
-                        return_full_text=False,
-                    )
-                    response = outputs[0]["generated_text"]
+                # No chat template -> plain text prompt
+                plain = f"{SYSTEM_TXT}\n\n{prompt}"
+                outputs = pipe(
+                    plain,
+                    max_new_tokens=200,
+                    max_length=None,
+                    do_sample=False,
+                    return_full_text=False,
+                )
+                response = outputs[0]["generated_text"]
 
             # Append and checkpoint
             new_row = {
@@ -311,10 +209,6 @@ def run_zero_shot_classification(
         # Cleanup
         if pipe is not None:
             del pipe
-        if thinking_model is not None:
-            del thinking_model
-        if thinking_tok is not None:
-            del thinking_tok
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             try:
