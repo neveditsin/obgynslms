@@ -12,6 +12,6 @@ results/
 reproducibility_data/
 supplementary_tables/*.csv
 
-notebooks/*.pdf
-notebooks/*.png
-notebooks/*.tex
+extra_notebooks/*.pdf
+extra_notebooks/*.png
+extra_notebooks/*.tex
