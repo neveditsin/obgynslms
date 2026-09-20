@@ -143,7 +143,7 @@ obgynslms-run --config configs/reproducibility_minimal_mimic_long.json --dry-run
 
 ## Reproduce Selection-Efficiency Experiments
 
-`notebooks/fig_selection_efficiency.ipynb` does not generate the underlying data. It only reads precomputed CSV and JSON artifacts from:
+`extra_notebooks/fig_selection_efficiency.ipynb` does not generate the underlying data. It only reads precomputed CSV and JSON artifacts from:
 
 - `results/<variant>/analysis/ping_pong_balanced_draw_stats_inference/`
 
@@ -185,8 +185,6 @@ python scripts/run_balanced_draw_stats_inference.py \
 ```
 
 For the full figure, run the same script for all required short/long variants after generating the corresponding zero-shot outputs. If you use different output roots than the canonical `results/...` variant names above, update the variant mapping in `scripts/run_balanced_draw_stats_inference.py` or adapt the notebook paths accordingly.
-
-`notebooks/fig_selection_efficiency.py` is a standalone plotting export with hard-coded values; the canonical regeneration path for reproducibility use is the notebook plus the two scripts above.
 
 ## Verification
 
