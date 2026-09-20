@@ -248,13 +248,24 @@ Example regeneration commands:
 python scripts/run_balanced_draw_stats_inference.py \
   --config configs/reproducibility_minimal_mimic_long.json \
   --variants long \
-  --dataset mimic
+  --dataset mimic \
+  --k-values 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20
 
 python scripts/run_balanced_draw_stats_inference.py \
   --config configs/reproducibility_minimal_indic_long.json \
   --variants indic_long \
-  --dataset our
+  --dataset our \
+  --k-values 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20
 ```
+
+The `--k-values` range is stated explicitly because the selection-efficiency figure is
+computed over a per-class quota of **2 through 20 inclusive** (19 operating points), which is
+wider than the `loo.k_values: [2, 4, 6, 8, 10]` in the shipped configs. Passing it here changes
+nothing about the run: `scripts/run_balanced_draw_stats_inference.py` already defaults to
+2-20 and forwards that range to `scripts/run_balanced_draw_selection_stats.py`. The default
+matters only if you invoke `scripts/run_balanced_draw_selection_stats.py` **directly** - that
+script falls back to `loo.k_values` from the config, which would give 5 operating points
+instead of 19. Pass `--k-values 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20` there too if you run it on its own.
 
 For the full figure, run the same script for all required short/long variants after generating the corresponding zero-shot outputs. If you use different output roots than the canonical `results/...` variant names above, update the variant mapping in `scripts/run_balanced_draw_stats_inference.py` or adapt the notebook paths accordingly.
 
