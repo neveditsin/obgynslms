@@ -9,7 +9,6 @@ try:
 except Exception:
     torch = None
     _DEVICE = -1
-from transformers import pipeline
 
 from .utils import load_checkpoint, save_checkpoint
 from .experiment_logger import get_logger
@@ -58,10 +57,8 @@ PROMPT_TEMPLATE = (
 
 
 import os
-from transformers import pipeline
 
 import os
-from transformers import pipeline
 
 
 def _load_pipeline(model_name: str):
@@ -69,6 +66,10 @@ def _load_pipeline(model_name: str):
     if torch is None:
         logger.error("PyTorch is not installed; skipping model %s", model_name)
         return None
+
+    # Imported here rather than at module scope so that importing this module
+    # (and therefore collecting the test suite) does not require transformers.
+    from transformers import pipeline
 
     try:
         # Default fast path
